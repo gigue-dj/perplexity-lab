@@ -25,3 +25,7 @@ dist-ssr
 
 # local artifacts
 local/
+.env
+.dev.vars
+.local.env
+.local.*
