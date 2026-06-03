@@ -12,31 +12,43 @@ export async function onRequestPost({ request, env }) {
   try {
     body = await request.json();
   } catch {
-    return j({ error: "bad json" }, 400);
+    return j({ error: { message: "bad json" } }, 400);
   }
 
   const { model = "openai/gpt-4o-mini", prompt } = body || {};
-  if (!prompt) return j({ error: "missing prompt" }, 400);
-  if (!ALLOWED.has(model)) return j({ error: "model not allowed" }, 400);
+  if (!prompt) return j({ error: { message: "missing prompt" } }, 400);
+  if (!ALLOWED.has(model)) return j({ error: { message: "model not allowed" } }, 400);
 
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      logprobs: true,
-      top_logprobs: 3,
-      max_tokens: 300,
-      temperature: 0.7,
-    }),
-  });
+  if (!env.OPENROUTER_API_KEY)
+    return j({ error: { message: "OPENROUTER_API_KEY not configured on this deployment." } }, 500);
 
-  // pass OpenRouter's JSON straight through; the frontend parser is unchanged
-  return new Response(await r.text(), {
+  let r;
+  try {
+    r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        logprobs: true,
+        top_logprobs: 3,
+        max_tokens: 300,
+        temperature: 0.7,
+        stream: false,
+      }),
+    });
+  } catch (e) {
+    return j({ error: { message: `Could not reach OpenRouter: ${e.message}` } }, 502);
+  }
+
+  const text = await r.text();
+  if (!text)
+    return j({ error: { message: `OpenRouter returned an empty response (HTTP ${r.status}).` } }, 502);
+
+  return new Response(text, {
     status: r.status,
     headers: { "Content-Type": "application/json" },
   });
