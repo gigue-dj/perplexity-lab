@@ -315,11 +315,13 @@ export default function PerplexityLab() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/perplexity", {
+      const res = await fetch("/api/logprobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, prompt }),
       });
+      if (res.status === 0)
+        throw new Error("Request blocked — an ad blocker may be filtering this request. Try disabling it for this site.");
       const data = await res.json();
       if (!res.ok)
         throw new Error(

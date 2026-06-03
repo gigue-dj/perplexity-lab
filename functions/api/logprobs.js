@@ -1,4 +1,4 @@
-// Cloudflare Pages Function -> POST /api/perplexity
+// Cloudflare Pages Function -> POST /api/logprobs
 const ALLOWED = new Set([
   "openai/gpt-4o-mini",
   "openai/gpt-4o",
