@@ -4,7 +4,6 @@ import {
   Loader2,
   Sparkles,
   ChevronDown,
-  KeyRound,
   Info,
   FlaskConical,
 } from "lucide-react";
@@ -284,7 +283,6 @@ function Pills({ items, mono, onEnter, onLeave }) {
 }
 
 export default function PerplexityLab() {
-  const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(MODELS[0].id);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
@@ -313,10 +311,6 @@ export default function PerplexityLab() {
   const hideTip = () => setTip(null);
 
   async function run() {
-    if (!apiKey.trim())
-      return setError(
-        "Add your OpenRouter key first (live mode only runs outside this sandbox — see note below).",
-      );
     if (!prompt.trim()) return setError("Type a prompt.");
     setError("");
     setLoading(true);
@@ -348,13 +342,7 @@ export default function PerplexityLab() {
       setResult(r);
       setHistory((h) => [{ ...r, ts: Date.now() }, ...h]);
     } catch (e) {
-      const blocked =
-        e?.name === "TypeError" || /fetch/i.test(e?.message || "");
-      setError(
-        blocked
-          ? "Blocked by the Claude.ai artifact sandbox — its security policy only allows network calls to Anthropic's own API, so OpenRouter can't be reached from here. This isn't your key. Use the Examples on the left, or deploy this component on your own origin (ideally behind a Cloudflare Worker that holds the key) where the live call works."
-          : e.message,
-      );
+      setError(e.message || "Request failed.");
     } finally {
       setLoading(false);
     }
@@ -589,17 +577,7 @@ export default function PerplexityLab() {
 
         {/* Input dock */}
         <div className="border-t border-slate-200 bg-white px-5 py-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="OpenRouter key (memory only)"
-                className="bg-transparent text-xs outline-none flex-1 min-w-0"
-              />
-            </div>
+          <div className="flex items-end gap-2">
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -611,9 +589,6 @@ export default function PerplexityLab() {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="flex items-end gap-2">
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -636,12 +611,6 @@ export default function PerplexityLab() {
               )}
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            Live calls don't run inside this Claude artifact (its sandbox blocks
-            non-Anthropic network). They work once deployed on your own origin —
-            ideally behind a Cloudflare Worker holding the key. Explore the
-            Examples here meanwhile.
-          </p>
         </div>
       </main>
 

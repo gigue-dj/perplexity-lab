@@ -1,16 +1,27 @@
-# React + Vite
+# Perplexity Lab
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive toy for exploring what **perplexity** actually measures in language models — not correctness, not quality, just how surprised the model was by its own word choices.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Type a prompt, pick a model, and the app calls OpenRouter to generate a response with logprobs. Each word and token is colored on a teal→red scale: teal means the model was confident (low surprisal), red means it hesitated among many alternatives (high surprisal). Hover any token to see its exact probability and what the runner-up alternatives were.
 
-## React Compiler
+The sidebar includes hand-authored illustrative examples to show the range — pure recall, confident-but-wrong, open-ended generation, hedged estimates — so the concept is clear without needing to run a live query first.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Architecture
 
-## Expanding the ESLint configuration
+- **Frontend**: React + Vite, deployed on Cloudflare Pages
+- **API proxy**: `functions/api/perplexity.js` — a Cloudflare Pages Function that forwards requests to OpenRouter and injects the API key from the `OPENROUTER_API_KEY` environment variable
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Local dev
+
+```bash
+npm install
+npm run dev
+```
+
+For live queries locally you'll need a `OPENROUTER_API_KEY` wrangler secret or can use `wrangler pages dev` to emulate the Functions layer. The illustrative examples in the sidebar work without any key.
+
+## Deploy
+
+Push to the connected Cloudflare Pages project. Set `OPENROUTER_API_KEY` as an environment variable in the Pages dashboard.
