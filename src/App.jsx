@@ -321,12 +321,21 @@ export default function PerplexityLab() {
         body: JSON.stringify({ model, prompt }),
       });
       if (res.status === 0)
-        throw new Error("Request blocked — an ad blocker may be filtering this request. Try disabling it for this site.");
-      const data = await res.json();
-      if (!res.ok)
         throw new Error(
-          data?.error?.message || `Request failed (${res.status})`,
+          "Request blocked — an ad blocker may be filtering this request. Try disabling it for this site.",
         );
+      const text = await res.text();
+      if (!res.ok) {
+        let message;
+        try { message = JSON.parse(text)?.error?.message; } catch {}
+        throw new Error(message || `Request failed (HTTP ${res.status})`);
+      }
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Server returned a non-JSON response (HTTP ${res.status}).`);
+      }
       const content = data.choices?.[0]?.logprobs?.content;
       if (!content?.length)
         throw new Error(
@@ -394,7 +403,7 @@ export default function PerplexityLab() {
   });
 
   return (
-    <div className="flex h-[660px] w-full bg-slate-50 text-slate-800 rounded-xl overflow-hidden border border-slate-200 font-sans">
+    <div className="flex h-165 w-full bg-slate-50 text-slate-800 rounded-xl overflow-hidden border border-slate-200 font-sans">
       {/* Sidebar */}
       <aside className="w-60 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-y-auto">
         <div className="px-4 pt-3 pb-1 flex items-center gap-1.5">

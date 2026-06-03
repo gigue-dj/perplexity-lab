@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "pages:dev": "wrangler pages dev --proxy 5173",
     "build": "vite build",
+    "pages:deploy": "npm run build && wrangler pages deploy",
     "lint": "eslint .",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
