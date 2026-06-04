@@ -4,60 +4,83 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // .wrangler/tmp/pages-CeP2RG/functionsWorker-0.5354640460400434.mjs
 var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
-var ALLOWED = /* @__PURE__ */ new Set([
-  "openai/gpt-4o-mini",
-  "openai/gpt-4o",
-  "openai/gpt-4.1-mini",
-  "openai/gpt-4.1",
-  "mistralai/mistral-7b-instruct"
-]);
+var DAY = 864e5;
+var MEM = { at: 0, list: null };
+async function logprobModels() {
+  if (MEM.list && Date.now() - MEM.at < DAY) return MEM.list;
+  const cache = caches.default;
+  const key = new Request("https://cache.local/or-logprob-models");
+  let res = await cache.match(key);
+  if (!res) {
+    const up = await fetch(
+      "https://openrouter.ai/api/v1/models?supported_parameters=logprobs"
+    );
+    const data = await up.json();
+    const list = (data.data || []).filter(
+      (m) => Array.isArray(m.supported_parameters) && m.supported_parameters.includes("logprobs") && !m.id.endsWith(":free")
+    ).map((m) => m.id);
+    res = new Response(JSON.stringify(list), {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "s-maxage=86400"
+      }
+    });
+    await cache.put(key, res.clone());
+  }
+  MEM = { at: Date.now(), list: await res.json() };
+  return MEM.list;
+}
+__name(logprobModels, "logprobModels");
+__name2(logprobModels, "logprobModels");
 async function onRequestPost({ request, env }) {
   let body;
   try {
     body = await request.json();
   } catch {
-    return j({ error: { message: "bad json" } }, 400);
+    return j({ error: "bad json" }, 400);
   }
-  const { model = "openai/gpt-4o-mini", prompt } = body || {};
-  if (!prompt) return j({ error: { message: "missing prompt" } }, 400);
-  if (!ALLOWED.has(model)) return j({ error: { message: "model not allowed" } }, 400);
-  if (!env.OPENROUTER_API_KEY)
-    return j({ error: { message: "OPENROUTER_API_KEY not configured on this deployment." } }, 500);
-  let r;
-  try {
-    r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        logprobs: true,
-        top_logprobs: 3,
-        max_tokens: 300,
-        temperature: 0.7,
-        stream: false
-      })
-    });
-  } catch (e) {
-    return j({ error: { message: `Could not reach OpenRouter: ${e.message}` } }, 502);
-  }
-  const text = await r.text();
-  if (!text)
-    return j({ error: { message: `OpenRouter returned an empty response (HTTP ${r.status}).` } }, 502);
-  return new Response(text, {
+  const { model = "openai/gpt-chat-latest", prompt } = body || {};
+  if (!prompt) return j({ error: "missing prompt" }, 400);
+  const allowed = await logprobModels();
+  if (!allowed.includes(model))
+    return j({ error: "model not allowed (no logprobs or unknown id)" }, 400);
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      logprobs: true,
+      top_logprobs: 3,
+      max_tokens: 300,
+      temperature: 0.7,
+      provider: { require_parameters: true }
+    })
+  });
+  return new Response(await r.text(), {
     status: r.status,
     headers: { "Content-Type": "application/json" }
   });
 }
 __name(onRequestPost, "onRequestPost");
 __name2(onRequestPost, "onRequestPost");
-var j = /* @__PURE__ */ __name2((obj, status) => new Response(JSON.stringify(obj), {
-  status,
+var j = /* @__PURE__ */ __name2((o, s) => new Response(JSON.stringify(o), {
+  status: s,
   headers: { "Content-Type": "application/json" }
 }), "j");
+async function onRequestGet() {
+  return new Response(JSON.stringify(await logprobModels()), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=3600"
+    }
+  });
+}
+__name(onRequestGet, "onRequestGet");
+__name2(onRequestGet, "onRequestGet");
 var routes = [
   {
     routePath: "/api/logprobs",
@@ -65,6 +88,13 @@ var routes = [
     method: "POST",
     middlewares: [],
     modules: [onRequestPost]
+  },
+  {
+    routePath: "/api/models",
+    mountPath: "/api",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet]
   }
 ];
 function lexer(str) {

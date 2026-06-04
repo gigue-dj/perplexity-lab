@@ -1,60 +1,85 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
+// api/_models.js
+var DAY = 864e5;
+var MEM = { at: 0, list: null };
+async function logprobModels() {
+  if (MEM.list && Date.now() - MEM.at < DAY) return MEM.list;
+  const cache = caches.default;
+  const key = new Request("https://cache.local/or-logprob-models");
+  let res = await cache.match(key);
+  if (!res) {
+    const up = await fetch(
+      "https://openrouter.ai/api/v1/models?supported_parameters=logprobs"
+    );
+    const data = await up.json();
+    const list = (data.data || []).filter(
+      (m) => Array.isArray(m.supported_parameters) && m.supported_parameters.includes("logprobs") && !m.id.endsWith(":free")
+    ).map((m) => m.id);
+    res = new Response(JSON.stringify(list), {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "s-maxage=86400"
+      }
+    });
+    await cache.put(key, res.clone());
+  }
+  MEM = { at: Date.now(), list: await res.json() };
+  return MEM.list;
+}
+__name(logprobModels, "logprobModels");
+
 // api/logprobs.js
-var ALLOWED = /* @__PURE__ */ new Set([
-  "openai/gpt-4o-mini",
-  "openai/gpt-4o",
-  "openai/gpt-4.1-mini",
-  "openai/gpt-4.1",
-  "mistralai/mistral-7b-instruct"
-]);
 async function onRequestPost({ request, env }) {
   let body;
   try {
     body = await request.json();
   } catch {
-    return j({ error: { message: "bad json" } }, 400);
+    return j({ error: "bad json" }, 400);
   }
-  const { model = "openai/gpt-4o-mini", prompt } = body || {};
-  if (!prompt) return j({ error: { message: "missing prompt" } }, 400);
-  if (!ALLOWED.has(model)) return j({ error: { message: "model not allowed" } }, 400);
-  if (!env.OPENROUTER_API_KEY)
-    return j({ error: { message: "OPENROUTER_API_KEY not configured on this deployment." } }, 500);
-  let r;
-  try {
-    r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        logprobs: true,
-        top_logprobs: 3,
-        max_tokens: 300,
-        temperature: 0.7,
-        stream: false
-      })
-    });
-  } catch (e) {
-    return j({ error: { message: `Could not reach OpenRouter: ${e.message}` } }, 502);
-  }
-  const text = await r.text();
-  if (!text)
-    return j({ error: { message: `OpenRouter returned an empty response (HTTP ${r.status}).` } }, 502);
-  return new Response(text, {
+  const { model = "openai/gpt-chat-latest", prompt } = body || {};
+  if (!prompt) return j({ error: "missing prompt" }, 400);
+  const allowed = await logprobModels();
+  if (!allowed.includes(model))
+    return j({ error: "model not allowed (no logprobs or unknown id)" }, 400);
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      logprobs: true,
+      top_logprobs: 3,
+      max_tokens: 300,
+      temperature: 0.7,
+      provider: { require_parameters: true }
+    })
+  });
+  return new Response(await r.text(), {
     status: r.status,
     headers: { "Content-Type": "application/json" }
   });
 }
 __name(onRequestPost, "onRequestPost");
-var j = /* @__PURE__ */ __name((obj, status) => new Response(JSON.stringify(obj), {
-  status,
+var j = /* @__PURE__ */ __name((o, s) => new Response(JSON.stringify(o), {
+  status: s,
   headers: { "Content-Type": "application/json" }
 }), "j");
+
+// api/models.js
+async function onRequestGet() {
+  return new Response(JSON.stringify(await logprobModels()), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=3600"
+    }
+  });
+}
+__name(onRequestGet, "onRequestGet");
 
 // ../.wrangler/tmp/pages-CeP2RG/functionsRoutes-0.6710708031273774.mjs
 var routes = [
@@ -64,6 +89,13 @@ var routes = [
     method: "POST",
     middlewares: [],
     modules: [onRequestPost]
+  },
+  {
+    routePath: "/api/models",
+    mountPath: "/api",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet]
   }
 ];
 
@@ -554,7 +586,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-OoBU1D/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-eQXVx9/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -586,7 +618,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-OoBU1D/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-eQXVx9/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
