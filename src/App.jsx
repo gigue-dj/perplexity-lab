@@ -11,12 +11,21 @@ import {
 // --- tuning knobs ---------------------------------------------------------
 const MAX_SURPRISAL = 4.0; // nats. ~1.8% token prob => fully "surprised" (warm end)
 
+// All verified to return logprobs on their PAID endpoint (avoid :free variants).
+// Small models are great here: they're more "surprised" by the same text, so
+// perplexity runs higher than on a frontier model — a built-in comparison.
+// Anthropic famously won't return their logprobs; other providers are hit-and-miss
 const MODELS = [
-  { id: "openai/gpt-4o-mini", label: "GPT-4o mini" },
-  { id: "openai/gpt-4o", label: "GPT-4o" },
-  { id: "openai/gpt-4.1-mini", label: "GPT-4.1 mini" },
-  { id: "openai/gpt-4.1", label: "GPT-4.1" },
-  { id: "mistralai/mistral-7b-instruct", label: "Mistral 7B Instruct" },
+  { id: "google/gemma-4-26b-a4b-it", label: "Gemma 4 26B (small MoE)" },
+  { id: "qwen/qwen3.6-27b", label: "Qwen3.6 27B (small dense)" },
+  { id: "qwen/qwen3.6-35b-a3b", label: "Qwen3.6 35B-A3B (3B active)" },
+  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash" },
+  { id: "z-ai/glm-5.1", label: "GLM 5.1" },
+  { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6" },
+  { id: "x-ai/grok-4.3", label: "Grok 4.3" },
+  { id: "openai/gpt-chat-latest", label: "GPT (Instant)" },
+  { id: "qwen/qwen3.7-max", label: "Qwen3.7 Max (large)" },
+  { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (large)" },
 ];
 
 // --- illustrative library (hand-authored logprobs; no network needed) -----
@@ -327,14 +336,18 @@ export default function PerplexityLab() {
       const text = await res.text();
       if (!res.ok) {
         let message;
-        try { message = JSON.parse(text)?.error?.message; } catch {}
+        try {
+          message = JSON.parse(text)?.error?.message;
+        } catch {}
         throw new Error(message || `Request failed (HTTP ${res.status})`);
       }
       let data;
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Server returned a non-JSON response (HTTP ${res.status}).`);
+        throw new Error(
+          `Server returned a non-JSON response (HTTP ${res.status}).`,
+        );
       }
       const content = data.choices?.[0]?.logprobs?.content;
       if (!content?.length)
